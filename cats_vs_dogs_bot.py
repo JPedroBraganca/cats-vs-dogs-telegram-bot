@@ -10,22 +10,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import datetime
+import mysql.connector
+from mysql.connector.constants import ClientFlag
+import os
 
+HOST_MYSQL = os.environ["HOST_MYSQL"]
+TOKEN_MYSQL = os.environ["TOKEN_MYSQL"]
 AUTH_TOKEN = os.environ["AUTH_TOKEN"]
 API_URL = os.environ["API_URL"]
 ADMIN_CHAT_ID = os.environ["ADMIN_CHAT_ID"]
 PAY_TEST_TOKEN = os.environ["PAY_TEST_TOKEN"]
 
-check_button = KeyboardButton('Check Credits')
+config = {
+    'user': 'root',
+    'password': TOKEN_MYSQL,
+    'host': HOST_MYSQL,
+    'database': 'jpbottest'}
 
-
-
-#keyboard_intro = ReplyKeyboardMarkup(keyboard=[["Help"], ["Check Credits", "Buy Credits"], ["About"]], resize_keyboard=True)
-#keyboard_intro = ReplyKeyboardMarkup(
-#                                    keyboard=[["Check", "Buy"], ["Help"], ["About"]],
-#                                    resize_keyboard=True,
-#                                    one_time_keyboard=False,
-#                                    input_field_placeholder="okay")
+cnxn = mysql.connector.connect(**config)
+cursor = cnxn.cursor() 
 
 def main_menu_keyboard():
   
@@ -43,7 +46,6 @@ def menu_keyboard():
 
 def start(update, context):
     
-    data = pd.read_csv("data.csv")
     update.message.reply_text(
         
     """Hey! Welcome to the JP's bot! 
@@ -61,23 +63,28 @@ def start(update, context):
     last_name = update.message.from_user.last_name
     username = update.message.from_user.username
 
-    
+    sql = """INSERT INTO usersdata (user_id, first_name, last_name, username, credits, n_predicts)
+         SELECT * FROM (SELECT %s AS user_id, %s AS first_name, %s AS last_name, %s AS username, %s AS credits, %s AS n_predicts) AS tmp
+         WHERE NOT EXISTS (
+        SELECT user_id FROM usersdata WHERE user_id = %s
+        ) LIMIT 1"""
+
+    the_vals = (user_id, first_name, last_name, username, 5, 0, user_id)
+    cursor.execute(sql, the_vals)
+    cnxn.commit()
+
+    query = "SELECT credits FROM usersdata WHERE user_id = %s"
+
+    vals = (user_id, )
+
+    cursor.execute(query, vals)
+
+    myresult = cursor.fetchall()
+
+    n_credits = myresult[0][0]
 
     context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f'✅ {user_id} - {first_name} {last_name} - {username} started the bot!')
-    if user_id not in data["user_id"].unique():
-        add_data = {"user_id": [user_id],
-                    "first_name": [first_name],
-                    "last_name": [last_name],
-                    "username": [username],
-                    "credits": [5]}
-        add_data = pd.DataFrame(add_data)
-        data = pd.concat((data, add_data), axis=0, ignore_index=True)
-        data.to_csv("data.csv", index=False)
-        context.bot.send_message(chat_id=user_id, text=f"Welcome, you have 5 free credits!")
-    else:
-        data_user = data[data.user_id == user_id]
-        n_credits = data_user["credits"].values[0]
-        context.bot.send_message(chat_id=user_id, text=f"Welcome back! You have {n_credits} credits!")
+    context.bot.send_message(chat_id=user_id, text=f"Welcome! You have {n_credits} credits!")
 
 def main_menu_message():
   return 'Choose an option:'
@@ -114,19 +121,42 @@ def add_credits(update, context):
     val = int(context.args[0])    
     context.bot.send_message(chat_id=user_id, text=f"Adding {val} credits!")
     
-    data = pd.read_csv("data.csv")
-    data = data[data.user_id == user_id]
-    n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
-    data.loc[data.user_id == user_id, "credits"] = n_credits + val
-    n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
+    query = "SELECT credits FROM usersdata WHERE user_id = %s"
+
+    vals = (user_id, )
+
+    cursor.execute(query, vals)
+
+    myresult = cursor.fetchall()
+
+    new_value = myresult[0][0] + val
+    new_value = (new_value, user_id)
+
+    query_2 = "UPDATE usersdata SET credits = %s WHERE user_id = %s"
+
+    cursor.execute(query_2, new_value)
+    
+    cnxn.commit()
+    
+    cursor.execute(query, vals)
+    myresult = cursor.fetchall()
+    n_credits = myresult[0][0] 
+    
     context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!")
-    data.to_csv("data.csv", index=False)
 
 def check_credits(update, context):
 
     user_id = update.effective_user.id
-    data = pd.read_csv("data.csv")
-    n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
+    
+    query = "SELECT credits FROM usersdata WHERE user_id = %s"
+
+    vals = (user_id, )
+
+    cursor.execute(query, vals)
+
+    myresult = cursor.fetchall()
+    n_credits = myresult[0][0] 
+
     context.bot.send_message(chat_id=user_id, text=f"You have {n_credits} credits!")
 
 
@@ -168,7 +198,7 @@ def the_buy_credits(update: Update, context: CallbackContext):
         title=title,
         description=description,
         payload=payload,
-        provider_token=os.environ["PAY_TEST_TOKEN"],
+        provider_token=PAY_TEST_TOKEN,
         start_parameter=payload,
         currency=currency,
         prices=prices,
@@ -198,27 +228,44 @@ def successful_payment_callback(update: Update, context: CallbackContext):
     update.message.reply_text("Thank you for your payment!")
     user_id = update.effective_user.id    
     context.bot.send_message(chat_id=user_id, text="Adding 10 credits!")
-    
-    data = pd.read_csv("data.csv")
-    data = data[data.user_id == user_id]
-    n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
-    data.loc[data.user_id == user_id, "credits"] = n_credits + 10
-    n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
-    context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!", reply_markup=main_menu_keyboard())
-    data.to_csv("data.csv", index=False)
 
-    transactions = pd.read_csv("transactions.csv")
-    this_transaction = pd.DataFrame({"user_id":[user_id],
-                                     "time":[datetime.datetime.now()]})
-    transactions = pd.concat((transactions, this_transaction), axis=0, ignore_index=True)
+    query = "SELECT credits FROM usersdata WHERE user_id = %s"
+
+    vals = (user_id, )
+
+    cursor.execute(query, vals)
+
+    myresult = cursor.fetchall()
+
+    new_value = myresult[0][0] + 10
+    new_value = (new_value, user_id)
+
+    query_2 = "UPDATE usersdata SET credits = %s WHERE user_id = %s"
+
+    cursor.execute(query_2, new_value)
+    
+    cnxn.commit()
+    
+    cursor.execute(query, vals)
+    myresult = cursor.fetchall()
+    n_credits = myresult[0][0]
+    
+    context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!", reply_markup=main_menu_keyboard())
 
 
 def handle_photo(update, context):
-
-    data = pd.read_csv("data.csv")
+    
     user_id =  update.effective_user.id
-    data = data[data.user_id == user_id]
-    n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
+    
+    query = "SELECT credits FROM usersdata WHERE user_id = %s"
+
+    vals = (user_id, )
+
+    cursor.execute(query, vals)
+
+    myresult = cursor.fetchall()
+
+    n_credits = myresult[0][0]
 
     if n_credits <= 0:
         context.bot.send_message(chat_id=user_id,
@@ -227,11 +274,16 @@ def handle_photo(update, context):
 
     else:
 
-        data.loc[data.user_id == user_id, "credits"] = n_credits - 1
-        n_credits = data.loc[data.user_id == user_id, "credits"].values[0]
-        context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!")
-        data.to_csv("data.csv", index=False)
+        query_2 = "UPDATE usersdata SET credits = %s WHERE user_id = %s"
 
+        cursor.execute(query_2, (n_credits - 1, user_id))
+        cnxn.commit()
+
+        cursor.execute(query, vals)
+        myresult = cursor.fetchall()
+        n_credits = myresult[0][0]
+        
+        context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!")
     
         context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f'✅ {user_id} is using the model!')
         file = context.bot.get_file(update.message.photo[-1].file_id)
