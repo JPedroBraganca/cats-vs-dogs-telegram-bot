@@ -1,0 +1,5 @@
+python-telegram-bot
+numpy
+opencv-python-headless
+mysql-connector-python
+requests
