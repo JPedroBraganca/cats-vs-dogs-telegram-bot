@@ -321,11 +321,7 @@ updater = Updater(AUTH_TOKEN, use_context=True)
 dp = updater.dispatcher
 
 dp.add_handler(CommandHandler("start", start))
-#dp.add_handler(CommandHandler("Help", help))
-#dp.add_handler(CommandHandler("About", about))
 dp.add_handler(CommandHandler("add_credits", add_credits))
-#dp.add_handler(CommandHandler("Check", check_credits))
-#dp.add_handler(CommandHandler("Buy", buy_credits))
 dp.add_handler(MessageHandler(Filters.text, handle_message))
 dp.add_handler(MessageHandler(Filters.photo, handle_photo))
 dp.add_handler(MessageHandler(Filters.photo, handle_photo))
