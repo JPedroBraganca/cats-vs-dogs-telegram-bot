@@ -1,17 +1,13 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, PreCheckoutQueryHandler, CallbackContext, CallbackQueryHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update, ReplyKeyboardMarkup, KeyboardButton
-from io import BytesIO, StringIO
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
+from io import BytesIO
 import requests
 import os
 import cv2
 import requests
 import base64
 import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-import datetime
 import mysql.connector
-from mysql.connector.constants import ClientFlag
 import os
 
 HOST_MYSQL = os.environ["HOST_MYSQL"]
@@ -314,9 +310,9 @@ def handle_photo(update, context):
         
         Result!
 
-        Predicted Class: {predicted_class}
-        Probability - Dog: {prob_dog:.2f}%
-        Probability - Cat: {prob_cat:.2f}%
+    Predicted Class: {predicted_class}
+    Probability - Dog: {prob_dog:.2f}%
+    Probability - Cat: {prob_cat:.2f}%
         
         """, reply_markup=main_menu_keyboard())
     
