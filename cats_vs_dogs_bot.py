@@ -194,8 +194,7 @@ def the_buy_credits(update: Update, context: CallbackContext):
         need_phone_number=False,
         need_email=False,
         need_shipping_address=False,
-        is_flexible=False,
-    )
+        is_flexible=False)
 
 def error(update, context):
     print(f'Update {update} caused error {context.error}')
