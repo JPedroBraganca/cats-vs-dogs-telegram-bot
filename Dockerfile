@@ -7,4 +7,4 @@ RUN apt update &&\
     pip install --upgrade pip &&\
     pip install -r requirements.txt
 
-CMD exec python3 cats_vs_dogs_bot.py
+CMD exec python cats_vs_dogs_bot.py
