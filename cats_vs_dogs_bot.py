@@ -16,12 +16,14 @@ AUTH_TOKEN = os.environ["AUTH_TOKEN"]
 API_URL = os.environ["API_URL"]
 ADMIN_CHAT_ID = os.environ["ADMIN_CHAT_ID"]
 PAY_TEST_TOKEN = os.environ["PAY_TEST_TOKEN"]
+DATABASE = os.environ["DATABASE"]
+SQL_USER = os.environ["SQL_USER"]
 
 config = {
-    'user': 'root',
+    'user': SQL_USER,
     'password': TOKEN_MYSQL,
     'host': HOST_MYSQL,
-    'database': 'jpbottest'}
+    'database': DATABASE}
 
 cnxn = mysql.connector.connect(**config)
 cursor = cnxn.cursor() 
@@ -53,25 +55,24 @@ def start(update, context):
     Choose an option to continue!
     
     """, reply_markup=main_menu_keyboard())
-    user_id = update.effective_user.id
-    #user_id = update.message.from_user.id
+
     first_name = update.message.from_user.first_name
     last_name = update.message.from_user.last_name
     username = update.message.from_user.username
 
-    sql = """INSERT INTO usersdata (user_id, first_name, last_name, username, credits, n_predicts)
-         SELECT * FROM (SELECT %s AS user_id, %s AS first_name, %s AS last_name, %s AS username, %s AS credits, %s AS n_predicts) AS tmp
+    sql = """INSERT INTO usersdata (user_id, first_name, last_name, username, credits)
+         SELECT * FROM (SELECT %s AS user_id, %s AS first_name, %s AS last_name, %s AS username, %s AS credits) AS tmp
          WHERE NOT EXISTS (
         SELECT user_id FROM usersdata WHERE user_id = %s
         ) LIMIT 1"""
 
-    the_vals = (user_id, first_name, last_name, username, 5, 0, user_id)
+    the_vals = (update.effective_user.id, first_name, last_name, username, 5, update.effective_user.id)
     cursor.execute(sql, the_vals)
     cnxn.commit()
 
     query = "SELECT credits FROM usersdata WHERE user_id = %s"
 
-    vals = (user_id, )
+    vals = (update.effective_user.id, )
 
     cursor.execute(query, vals)
 
@@ -79,8 +80,8 @@ def start(update, context):
 
     n_credits = myresult[0][0]
 
-    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f'✅ {user_id} - {first_name} {last_name} - {username} started the bot!')
-    context.bot.send_message(chat_id=user_id, text=f"Welcome! You have {n_credits} credits!")
+    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f'✅ {update.effective_user.id} - {first_name} {last_name} - {username} started the bot!')
+    context.bot.send_message(chat_id=update.effective_user.id, text=f"Welcome! You have {n_credits} credits!")
 
 def main_menu_message():
   return 'Choose an option:'
@@ -105,28 +106,25 @@ def the_about(update, context):
     """)
 
 def handle_message(update, context):
-    #update.message.reply_text(update.message.from_user.id)
+    
     name = update.message.from_user.first_name
-    #update.message.reply_text(update.message.from_user.last_name)
-    #update.message.reply_text(update.message.from_user.username)
-    update.message.reply_text(f"Hey {name}! Ready for some predicts? =D", reply_markup=main_menu_keyboard())
+    update.message.reply_text(f"Hey, {name}! Ready for some predicts? =D", reply_markup=main_menu_keyboard())
 
 def add_credits(update, context):
     
-    user_id = update.effective_user.id
     val = int(context.args[0])    
-    context.bot.send_message(chat_id=user_id, text=f"Adding {val} credits!")
+    context.bot.send_message(chat_id=update.effective_user.id, text=f"Adding {val} credits!")
     
     query = "SELECT credits FROM usersdata WHERE user_id = %s"
 
-    vals = (user_id, )
+    vals = (update.effective_user.id, )
 
     cursor.execute(query, vals)
 
     myresult = cursor.fetchall()
 
     new_value = myresult[0][0] + val
-    new_value = (new_value, user_id)
+    new_value = (new_value, update.effective_user.id)
 
     query_2 = "UPDATE usersdata SET credits = %s WHERE user_id = %s"
 
@@ -138,26 +136,24 @@ def add_credits(update, context):
     myresult = cursor.fetchall()
     n_credits = myresult[0][0] 
     
-    context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!")
+    context.bot.send_message(chat_id=update.effective_user.id, text=f"Now you have {n_credits} credits!")
 
 def check_credits(update, context):
-
-    user_id = update.effective_user.id
     
     query = "SELECT credits FROM usersdata WHERE user_id = %s"
 
-    vals = (user_id, )
+    vals = (update.effective_user.id, )
 
     cursor.execute(query, vals)
 
     myresult = cursor.fetchall()
     n_credits = myresult[0][0] 
 
-    context.bot.send_message(chat_id=user_id, text=f"You have {n_credits} credits!")
+    context.bot.send_message(chat_id=update.effective_user.id, text=f"You have {n_credits} credits!")
 
 
 def the_buy_credits(update: Update, context: CallbackContext):
-    """Sends an invoice with shipping-payment."""
+    
     context.bot.send_message(chat_id=update.effective_user.id,
     
     
@@ -174,23 +170,19 @@ def the_buy_credits(update: Update, context: CallbackContext):
     
     """)
     
-    chat_id = update.effective_user.id
     title = "Buying Credits"
     description = "10 credits"
-    # select a payload just for you to recognize its the donation from your bot
+    
     payload = "Custom-Payload"
-    # In order to get a provider_token see https://core.telegram.org/bots/payments#getting-a-token
+    
     currency = "BRL"
-    # price in dollars
+    
     price = 10
-    # price * 100 so as to include 2 decimal points
-    # check https://core.telegram.org/bots/payments#supported-currencies for more details
+    
     prices = [LabeledPrice("Test", price * 100)]
 
-    # optionally pass need_name=True, need_phone_number=True,
-    # need_email=True, need_shipping_address=True, is_flexible=True
     context.bot.send_invoice(
-        chat_id=chat_id,
+        chat_id=update.effective_user.id,
         title=title,
         description=description,
         payload=payload,
@@ -209,32 +201,30 @@ def error(update, context):
     print(f'Update {update} caused error {context.error}')
 
 def precheckout_callback(update: Update, context: CallbackContext):
-    """Answers the PreQecheckoutQuery"""
+    
     query = update.pre_checkout_query
-    # check the payload, is this from your bot?
+    
     if query.invoice_payload != "Custom-Payload":
-        # answer False pre_checkout_query
+        
         query.answer(ok=False, error_message="Something went wrong...")
     else:
         query.answer(ok=True)
 
 def successful_payment_callback(update: Update, context: CallbackContext):
-    """Confirms the successful payment."""
-    # do something after successfully receiving payment?
-    update.message.reply_text("Thank you for your payment!")
-    user_id = update.effective_user.id    
-    context.bot.send_message(chat_id=user_id, text="Adding 10 credits!")
+    
+    update.message.reply_text("Thank you for your payment!")   
+    context.bot.send_message(chat_id=update.effective_user.id, text="Adding 10 credits!")
 
     query = "SELECT credits FROM usersdata WHERE user_id = %s"
 
-    vals = (user_id, )
+    vals = (update.effective_user.id, )
 
     cursor.execute(query, vals)
 
     myresult = cursor.fetchall()
 
     new_value = myresult[0][0] + 10
-    new_value = (new_value, user_id)
+    new_value = (new_value, update.effective_user.id)
 
     query_2 = "UPDATE usersdata SET credits = %s WHERE user_id = %s"
 
@@ -246,16 +236,14 @@ def successful_payment_callback(update: Update, context: CallbackContext):
     myresult = cursor.fetchall()
     n_credits = myresult[0][0]
     
-    context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!", reply_markup=main_menu_keyboard())
+    context.bot.send_message(chat_id=update.effective_user.id, text=f"Now you have {n_credits} credits!", reply_markup=main_menu_keyboard())
 
 
 def handle_photo(update, context):
     
-    user_id =  update.effective_user.id
-    
     query = "SELECT credits FROM usersdata WHERE user_id = %s"
 
-    vals = (user_id, )
+    vals = (update.effective_user.id, )
 
     cursor.execute(query, vals)
 
@@ -264,7 +252,7 @@ def handle_photo(update, context):
     n_credits = myresult[0][0]
 
     if n_credits <= 0:
-        context.bot.send_message(chat_id=user_id,
+        context.bot.send_message(chat_id=update.effective_user.id,
                                  text=f"You have {n_credits} credits! Please buy more!",
                                  reply_markup=menu_keyboard())
 
@@ -272,16 +260,16 @@ def handle_photo(update, context):
 
         query_2 = "UPDATE usersdata SET credits = %s WHERE user_id = %s"
 
-        cursor.execute(query_2, (n_credits - 1, user_id))
+        cursor.execute(query_2, (n_credits - 1, update.effective_user.id))
         cnxn.commit()
 
         cursor.execute(query, vals)
         myresult = cursor.fetchall()
         n_credits = myresult[0][0]
         
-        context.bot.send_message(chat_id=user_id, text=f"Now you have {n_credits} credits!")
+        context.bot.send_message(chat_id=update.effective_user.id, text=f"Now you have {n_credits} credits!")
     
-        context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f'✅ {user_id} is using the model!')
+        context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f'✅ {update.effective_user.id} is using the model!')
         file = context.bot.get_file(update.message.photo[-1].file_id)
         f = BytesIO(file.download_as_bytearray())
         file_bytes = np.asarray(bytearray(f.read()), dtype=np.uint8)
@@ -292,7 +280,7 @@ def handle_photo(update, context):
 
         update.message.reply_text("""
     
-            Predicting...
+        Predicting...
 
         It may take a while for the first predict!
 
@@ -319,15 +307,9 @@ def handle_photo(update, context):
 
 updater = Updater(AUTH_TOKEN, use_context=True)
 dp = updater.dispatcher
-
 dp.add_handler(CommandHandler("start", start))
-#dp.add_handler(CommandHandler("Help", help))
-#dp.add_handler(CommandHandler("About", about))
 dp.add_handler(CommandHandler("add_credits", add_credits))
-#dp.add_handler(CommandHandler("Check", check_credits))
-#dp.add_handler(CommandHandler("Buy", buy_credits))
 dp.add_handler(MessageHandler(Filters.text, handle_message))
-dp.add_handler(MessageHandler(Filters.photo, handle_photo))
 dp.add_handler(MessageHandler(Filters.photo, handle_photo))
 dp.add_handler(MessageHandler(Filters.successful_payment, successful_payment_callback))
 dp.add_handler(PreCheckoutQueryHandler(precheckout_callback))
