@@ -4,11 +4,9 @@ from io import BytesIO
 import requests
 import os
 import cv2
-import requests
 import base64
 import numpy as np
 import mysql.connector
-import os
 
 HOST_MYSQL = os.environ["HOST_MYSQL"]
 TOKEN_MYSQL = os.environ["TOKEN_MYSQL"]
